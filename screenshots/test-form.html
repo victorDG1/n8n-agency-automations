@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Speed-to-Lead Engine — Test Form</title>
+<style>
+  body { font-family: -apple-system, Arial, sans-serif; max-width: 520px; margin: 40px auto; padding: 0 20px; background: #f7f7fb; }
+  h1 { font-size: 20px; }
+  label { display: block; margin-top: 12px; font-weight: 600; font-size: 13px; }
+  input, textarea { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+  button { margin-top: 18px; padding: 10px 18px; background: #4f46e5; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  #result { margin-top: 16px; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
+  .ok { background: #dcfce7; border: 1px solid #16a34a; }
+</style>
+</head>
+<body>
+  <h1>Contact Us — Get a Free Marketing Audit</h1>
+  <form id="leadForm">
+    <label>Name</label>
+    <input id="name" required>
+    <label>Email</label>
+    <input id="email" type="email" required>
+    <label>Phone</label>
+    <input id="phone">
+    <label>Company</label>
+    <input id="company">
+    <label>Website</label>
+    <input id="website">
+    <label>How can we help?</label>
+    <textarea id="message" rows="4"></textarea>
+    <button type="submit">Send</button>
+  </form>
+  <div id="result"></div>
+<script>
+document.getElementById('leadForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const payload = {
+    name: document.getElementById('name').value,
+    email: document.getElementById('email').value,
+    phone: document.getElementById('phone').value,
+    company: document.getElementById('company').value,
+    website: document.getElementById('website').value,
+    message: document.getElementById('message').value,
+  };
+  const res = await fetch('http://localhost:5678/webhook/speed-to-lead-intake', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  const el = document.getElementById('result');
+  el.className = res.ok ? 'ok' : '';
+  el.textContent = 'HTTP ' + res.status + '\n' + JSON.stringify(data, null, 2);
+});
+</script>
+</body>
+</html>
