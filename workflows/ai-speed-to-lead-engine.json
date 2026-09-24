@@ -1,0 +1,2187 @@
+{
+  "name": "AI Speed-to-Lead Engine",
+  "nodes": [
+    {
+      "id": "sticky-overview",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        -520
+      ],
+      "parameters": {
+        "width": 620,
+        "height": 460,
+        "color": 4,
+        "content": "## AI Speed-to-Lead Engine\n\nResponds to and qualifies every inbound lead in under 60 seconds, 24/7.\n\n**Flow:** Webhook -> Normalize -> Instant 200 response -> Dedup check (Google Sheets) -> Optional website enrichment -> AI qualification (scored 0-100, tier hot/warm/cold) -> Tier routing:\n- HOT -> Slack alert + AI-personalized email with booking link, sent immediately\n- WARM -> AI email + 2-step follow-up sequence (Wait 2d / Wait 3d), stops if the lead responds\n- COLD -> short AI educational email + CRM tag\n\n**Before you go live:**\n1. Open the **⚙️ CONFIG** node and fill in your agency's details.\n2. Create the 4 credentials listed in that node's note (Google Sheets, Slack, SMTP, OpenAI).\n3. Duplicate the Google Sheet template (see /docs) and paste its ID into CONFIG.\n4. Send a test POST to the Webhook node's Production URL.\n\nSee /docs/ai-speed-to-lead-engine.md for full setup (10 min)."
+      }
+    },
+    {
+      "id": "sticky-1-intake",
+      "name": "Sticky - Intake",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        60
+      ],
+      "parameters": {
+        "width": 1180,
+        "height": 340,
+        "color": 5,
+        "content": "### 1️⃣ INTAKE & NORMALIZATION\nAccepts POST from any source (website form, Typeform, Facebook Lead Ads via Graph API webhook). The Code node auto-detects the payload shape and maps it to a standard lead object: name, email, phone, company, website, message, source.\n\nResponds to the webhook with `{\"status\":\"received\"}` (200) immediately after normalization — the form never waits for the AI or CRM calls, which continue in the background of the same execution."
+      }
+    },
+    {
+      "id": "sticky-2-dedup",
+      "name": "Sticky - Dedup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "width": 900,
+        "height": 320,
+        "color": 3,
+        "content": "### 2️⃣ DEDUPLICATION\nLooks up the lead's email in the Google Sheets CRM tab. If found, updates the contact counter and stops (no duplicate emails/alerts).\n\n**Alternative CRM:** the disabled \"HubSpot - Search Contact (Alt CRM)\" node below shows how to swap Google Sheets for HubSpot. Enable it, disable the Google Sheets dedup branch, and add a HubSpot credential."
+      }
+    },
+    {
+      "id": "sticky-3-enrich",
+      "name": "Sticky - Enrichment",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        860,
+        -420
+      ],
+      "parameters": {
+        "width": 900,
+        "height": 440,
+        "color": 7,
+        "content": "### 3️⃣ WEBSITE ENRICHMENT (optional, best-effort)\nIf the lead submitted a website, fetches the homepage and extracts the <title> and meta description to give the AI more context (industry, positioning). If the site is missing or the request fails, the workflow continues with empty enrichment fields — this never blocks qualification."
+      }
+    },
+    {
+      "id": "sticky-4-ai",
+      "name": "Sticky - AI Qualification",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        -420
+      ],
+      "parameters": {
+        "width": 700,
+        "height": 780,
+        "color": 6,
+        "content": "### 4️⃣ AI QUALIFICATION\nThe Basic LLM Chain scores the lead 0-100 and assigns a tier (hot/warm/cold) using the criteria you define in ⚙️ CONFIG. Output is forced into JSON via the Structured Output Parser (score, tier, intent, budget_signal, summary, recommended_next_step).\n\nRetries 3x automatically on API errors/timeouts. If the parsed output still fails validation (e.g. score out of range), a safe fallback (tier=warm, score=50) is applied so the lead is never lost, and it's flagged in the sheet notes for manual review."
+      }
+    },
+    {
+      "id": "sticky-5-hot",
+      "name": "Sticky - Hot",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2900,
+        -680
+      ],
+      "parameters": {
+        "width": 640,
+        "height": 320,
+        "color": 4,
+        "content": "### 5️⃣ HOT -> INSTANT RESPONSE\nSlack alert to your sales channel with the AI summary + booking link, and a personalized email to the lead with the Calendly link — both fire within seconds of the qualification finishing."
+      }
+    },
+    {
+      "id": "sticky-6-warm",
+      "name": "Sticky - Warm",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2900,
+        -60
+      ],
+      "parameters": {
+        "width": 1980,
+        "height": 500,
+        "color": 5,
+        "content": "### 6️⃣ WARM -> 3-EMAIL FOLLOW-UP SEQUENCE\nEmail 1 immediately, then Wait 2 days and check the sheet's `responded` column — if TRUE the sequence stops. Otherwise Email 2, Wait 3 days, check again, then Email 3 (final). Mark `responded=TRUE` in the sheet (manually or via your booking tool's webhook) any time to stop the sequence early."
+      }
+    },
+    {
+      "id": "sticky-7-cold",
+      "name": "Sticky - Cold",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2900,
+        500
+      ],
+      "parameters": {
+        "width": 900,
+        "height": 260,
+        "color": 3,
+        "content": "### 7️⃣ COLD -> EDUCATIONAL NURTURE\nShort, low-pressure AI email (no hard sell) plus a `cold` tag in the sheet so sales knows not to prioritize this lead."
+      }
+    },
+    {
+      "id": "sticky-error",
+      "name": "Sticky - Error Handling",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        820
+      ],
+      "parameters": {
+        "width": 900,
+        "height": 300,
+        "color": 2,
+        "content": "### ⚠️ ERROR HANDLING\nError Trigger fires whenever any node in this workflow fails after its retries are exhausted. Sends the workflow name, the failing node, and the error message to Slack and email so you catch problems (expired credentials, API outages) before a real lead is affected.\n\n**Note:** this runs as its own isolated execution and cannot read ⚙️ CONFIG (that node never executed here) - the Slack channel and error email are hardcoded directly on the two nodes below. Update them there when reselling."
+      }
+    },
+    {
+      "id": "webhook",
+      "name": "Webhook - New Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -360,
+        260
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "speed-to-lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "config",
+      "name": "⚙️ CONFIG",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -80,
+        260
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "agency_name",
+              "type": "string",
+              "value": "Your Agency Name"
+            },
+            {
+              "id": "a2",
+              "name": "calendly_link",
+              "type": "string",
+              "value": "https://calendly.com/your-agency/intro-call"
+            },
+            {
+              "id": "a3",
+              "name": "slack_channel",
+              "type": "string",
+              "value": "#hot-leads"
+            },
+            {
+              "id": "a4",
+              "name": "notification_email_from",
+              "type": "string",
+              "value": "leads@youragency.com"
+            },
+            {
+              "id": "a5",
+              "name": "google_sheet_id",
+              "type": "string",
+              "value": "PASTE_YOUR_GOOGLE_SHEET_ID_HERE"
+            },
+            {
+              "id": "a6",
+              "name": "google_sheet_tab",
+              "type": "string",
+              "value": "Leads"
+            },
+            {
+              "id": "a7",
+              "name": "hot_score_threshold",
+              "type": "number",
+              "value": 70
+            },
+            {
+              "id": "a8",
+              "name": "warm_score_threshold",
+              "type": "number",
+              "value": 40
+            },
+            {
+              "id": "a9",
+              "name": "qualification_criteria",
+              "type": "string",
+              "value": "HOT = clear budget signal, urgent timeline, or explicit request for a call/quote/proposal. WARM = genuine interest and a real business need, but missing budget or timeline details. COLD = vague inquiry, student/job seeker, spam-like content, or no real buying intent."
+            },
+            {
+              "id": "a10",
+              "name": "email_tone",
+              "type": "string",
+              "value": "friendly, professional, concise, no corporate jargon, written as if from a helpful human on the team"
+            },
+            {
+              "id": "a11",
+              "name": "follow_up_wait_1_days",
+              "type": "number",
+              "value": 2
+            },
+            {
+              "id": "a12",
+              "name": "follow_up_wait_2_days",
+              "type": "number",
+              "value": 3
+            },
+            {
+              "id": "a13",
+              "name": "ai_model",
+              "type": "string",
+              "value": "gpt-4o-mini"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "notes": "Every client-specific setting lives here. To resell this workflow, duplicate it and edit ONLY this node.\n\nCredentials to create on the client's n8n instance:\n1. Google Sheets OAuth2 (CRM log + dedup)\n2. Slack API / Bot Token (channel alerts)\n3. SMTP (outbound email)\n4. OpenAI API (lead qualification + email writing)"
+    },
+    {
+      "id": "normalize",
+      "name": "Normalize Lead Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Detect the webhook payload shape (generic web form, Typeform, or Facebook Lead Ads)\n// and map it to one standard lead object. A Code node is used here because the three\n// source formats are structurally different (flat body vs. Typeform answers[] vs.\n// Facebook field_data[]) and cannot be reduced to a single Set-node expression.\nconst item = $input.first().json;\nconst body = item.body || {};\nconst cfg = item; // CONFIG fields were merged onto this item upstream\n\nlet lead = { name: '', email: '', phone: '', company: '', website: '', message: '', source: 'website_form' };\n\nif (body.form_response) {\n  // Typeform webhook\n  lead.source = 'typeform';\n  const answers = body.form_response.answers || [];\n  for (const a of answers) {\n    const ref = ((a.field && a.field.ref) || '').toLowerCase();\n    if (a.type === 'email') lead.email = a.email;\n    else if (a.type === 'phone_number') lead.phone = a.phone_number;\n    else if (a.type === 'website') lead.website = a.website;\n    else if (ref.includes('company')) lead.company = a.text || '';\n    else if (ref.includes('name')) lead.name = a.text || '';\n    else if (a.type === 'text' || a.type === 'long_text') lead.message = lead.message ? `${lead.message} ${a.text}` : (a.text || '');\n  }\n} else if (body.entry) {\n  // Facebook Lead Ads (Graph API leadgen change notification)\n  lead.source = 'facebook_lead_ads';\n  const value = body.entry?.[0]?.changes?.[0]?.value || {};\n  const fields = value.field_data || body.field_data || [];\n  for (const f of fields) {\n    const key = (f.name || '').toLowerCase();\n    const val = (f.values && f.values[0]) || '';\n    if (key.includes('email')) lead.email = val;\n    else if (key.includes('phone')) lead.phone = val;\n    else if (key.includes('company')) lead.company = val;\n    else if (key.includes('website')) lead.website = val;\n    else if (key.includes('name')) lead.name = val;\n    else if (key.includes('message') || key.includes('note')) lead.message = val;\n  }\n} else {\n  // Generic website form / HTML POST - accepts common field name variants\n  lead.source = body.source || 'website_form';\n  lead.name = body.name || body.full_name || body.fullName || '';\n  lead.email = body.email || body.Email || '';\n  lead.phone = body.phone || body.phone_number || body.tel || '';\n  lead.company = body.company || body.company_name || '';\n  lead.website = body.website || body.url || '';\n  lead.message = body.message || body.notes || body.details || '';\n}\n\nreturn [{\n  json: {\n    ...cfg,\n    name: (lead.name || '').trim(),\n    email: (lead.email || '').trim().toLowerCase(),\n    phone: (lead.phone || '').trim(),\n    company: (lead.company || '').trim(),\n    website: (lead.website || '').trim(),\n    message: (lead.message || '').trim(),\n    source: lead.source,\n    received_at: new Date().toISOString(),\n  },\n}];\n"
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        440,
+        60
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"received\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "dedup-search",
+      "name": "Dedup - Search Existing Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        440,
+        420
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "email",
+              "lookupValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "hubspot-alt",
+      "name": "HubSpot - Search Contact (Alt CRM)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [
+        440,
+        560
+      ],
+      "parameters": {
+        "resource": "contact",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {},
+        "additionalFields": {}
+      },
+      "credentials": {
+        "hubspotApi": {
+          "id": "PLACEHOLDER",
+          "name": "HubSpot account"
+        }
+      },
+      "notes": "Disabled by default. Enable this instead of the Google Sheets dedup branch if the client's CRM is HubSpot.",
+      "disabled": true
+    },
+    {
+      "id": "if-exists",
+      "name": "IF - Email Already Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        700,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.rowNumber }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "mark-dup",
+      "name": "Mark Duplicate - Update Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        560
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.rowNumber }}",
+            "last_seen_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "id": "dup-stop",
+      "name": "No Operation - Duplicate Skipped",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        560
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "if-website",
+      "name": "IF - Has Website?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        960,
+        220
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fetch-site",
+      "name": "HTTP Request - Fetch Homepage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1220,
+        80
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.website }}",
+        "authentication": "none",
+        "options": {
+          "timeout": 8000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          }
+        }
+      },
+      "notes": "Best-effort. If the site is down or blocks bots, downstream nodes fall back to empty enrichment.",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "extract-html",
+      "name": "HTML Extract - Title & Description",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        80
+      ],
+      "parameters": {
+        "sourceData": "json",
+        "dataPropertyName": "data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "page_title",
+              "cssSelector": "title",
+              "returnValue": "text"
+            },
+            {
+              "key": "page_description",
+              "cssSelector": "meta[name=\"description\"]",
+              "returnValue": "attribute",
+              "returnAttribute": "content"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "enrich-yes",
+      "name": "Set - Enrichment From Website",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1740,
+        80
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "page_title",
+              "type": "string",
+              "value": "={{ $json.page_title || '' }}"
+            },
+            {
+              "id": "e2",
+              "name": "page_description",
+              "type": "string",
+              "value": "={{ $json.page_description || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "enrich-no",
+      "name": "Set - No Enrichment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1220,
+        320
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "page_title",
+              "type": "string",
+              "value": ""
+            },
+            {
+              "id": "e2",
+              "name": "page_description",
+              "type": "string",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "chat-model",
+      "name": "OpenAI Chat Model - Shared",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2000,
+        340
+      ],
+      "parameters": {
+        "model": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.ai_model }}"
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "PLACEHOLDER",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "id": "qualify-parser",
+      "name": "Structured Output Parser - Qualification",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2260,
+        340
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"score\": {\n      \"type\": \"number\",\n      \"description\": \"0-100 lead quality score\"\n    },\n    \"tier\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"hot\",\n        \"warm\",\n        \"cold\"\n      ]\n    },\n    \"intent\": {\n      \"type\": \"string\"\n    },\n    \"budget_signal\": {\n      \"type\": \"string\"\n    },\n    \"summary\": {\n      \"type\": \"string\"\n    },\n    \"recommended_next_step\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"score\",\n    \"tier\",\n    \"intent\",\n    \"budget_signal\",\n    \"summary\",\n    \"recommended_next_step\"\n  ]\n}"
+      }
+    },
+    {
+      "id": "qualify-chain",
+      "name": "Basic LLM Chain - Qualify Lead",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        2000,
+        220
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "You are a B2B lead qualification assistant for a marketing agency called {{ $('⚙️ CONFIG').item.json.agency_name }}.\n\nQualification criteria:\n{{ $('⚙️ CONFIG').item.json.qualification_criteria }}\n\nLead data:\n- Name: {{ $json.name }}\n- Company: {{ $json.company }}\n- Email: {{ $json.email }}\n- Phone: {{ $json.phone }}\n- Website: {{ $json.website }}\n- Message: {{ $json.message }}\n- Website title: {{ $json.page_title }}\n- Website description: {{ $json.page_description }}\n\nReturn ONLY a JSON object (json) scoring this lead 0-100 and classifying it into tier hot, warm or cold, using the exact thresholds: hot >= {{ $('⚙️ CONFIG').item.json.hot_score_threshold }}, warm >= {{ $('⚙️ CONFIG').item.json.warm_score_threshold }}, otherwise cold.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "if-valid",
+      "name": "IF - Valid AI Output?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2260,
+        220
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "v1",
+              "leftValue": "={{ $json.output.tier }}",
+              "rightValue": "hot,warm,cold",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fallback",
+      "name": "Set - Fallback Qualification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2260,
+        400
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1",
+              "name": "output.tier",
+              "type": "string",
+              "value": "warm"
+            },
+            {
+              "id": "f2",
+              "name": "output.score",
+              "type": "number",
+              "value": 50
+            },
+            {
+              "id": "f3",
+              "name": "output.summary",
+              "type": "string",
+              "value": "AI qualification output failed validation - routed to WARM as a safe default. Review manually."
+            },
+            {
+              "id": "f4",
+              "name": "output.recommended_next_step",
+              "type": "string",
+              "value": "Manual review recommended."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "switch-tier",
+      "name": "Switch - Route by Tier",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2520,
+        220
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.output.tier }}",
+                    "rightValue": "hot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "hot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.output.tier }}",
+                    "rightValue": "warm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "warm"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.output.tier }}",
+                    "rightValue": "cold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "cold"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "1"
+        }
+      }
+    },
+    {
+      "id": "email-parser",
+      "name": "Structured Output Parser - Email",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2780,
+        620
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"subject\": {\n      \"type\": \"string\"\n    },\n    \"body\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"subject\",\n    \"body\"\n  ]\n}"
+      }
+    },
+    {
+      "id": "hot-chain",
+      "name": "Basic LLM Chain - Write Hot Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        2780,
+        -680
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "Write a short, personal follow-up email (json) to a HOT lead for {{ $('⚙️ CONFIG').item.json.agency_name }}.\nTone: {{ $('⚙️ CONFIG').item.json.email_tone }}.\nLead name: {{ $json.name }}. Company: {{ $json.company }}. Their message: {{ $json.message }}.\nAI summary: {{ $json.output.summary }}. Recommended next step: {{ $json.output.recommended_next_step }}.\nInclude this scheduling link once, naturally: {{ $('⚙️ CONFIG').item.json.calendly_link }}.\nReturn an object with subject and body (plain text, no markdown, sign off as the {{ $('⚙️ CONFIG').item.json.agency_name }} team).",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "hot-email",
+      "name": "Send Email - Hot Lead",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3040,
+        -680
+      ],
+      "parameters": {
+        "fromEmail": "={{ $('⚙️ CONFIG').item.json.notification_email_from }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.output.subject }}",
+        "text": "={{ $json.output.body }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "id": "PLACEHOLDER",
+          "name": "SMTP account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "hot-slack",
+      "name": "Slack - Alert Hot Lead",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        2780,
+        -540
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.slack_channel }}"
+        },
+        "text": "=🔥 *HOT LEAD* — {{ $json.name }} ({{ $json.company }})\\nScore: {{ $json.output.score }}/100\\nIntent: {{ $json.output.intent }}\\nBudget signal: {{ $json.output.budget_signal }}\\nSummary: {{ $json.output.summary }}\\nEmail: {{ $json.email }} | Phone: {{ $json.phone }}\\n<{{ $('⚙️ CONFIG').item.json.calendly_link }}|Book a call now>",
+        "otherOptions": {}
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "PLACEHOLDER",
+          "name": "Slack account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "hot-log",
+      "name": "Google Sheets - Log Hot Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3300,
+        -610
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $json.email }}",
+            "name": "={{ $json.name }}",
+            "company": "={{ $json.company }}",
+            "phone": "={{ $json.phone }}",
+            "source": "={{ $json.source }}",
+            "timestamp": "={{ $json.received_at }}",
+            "score": "={{ $json.output.score }}",
+            "tier": "={{ $json.output.tier }}",
+            "emails_sent": 1,
+            "responded": false,
+            "response_time_seconds": "={{ Math.round((Date.now() - Date.parse($json.received_at)) / 1000) }}",
+            "notes": "={{ $json.output.summary }}"
+          },
+          "matchingColumns": [
+            "email"
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "warm1-chain",
+      "name": "Basic LLM Chain - Write Warm Email 1",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        2780,
+        -60
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "Write the first follow-up email (json) to a WARM lead for {{ $('⚙️ CONFIG').item.json.agency_name }}.\nTone: {{ $('⚙️ CONFIG').item.json.email_tone }}.\nLead name: {{ $json.name }}. Company: {{ $json.company }}. Their message: {{ $json.message }}.\nAI summary: {{ $json.output.summary }}.\nReturn an object with subject and body (plain text, no markdown, sign off as the {{ $('⚙️ CONFIG').item.json.agency_name }} team).",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "warm1-email",
+      "name": "Send Email - Warm 1",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3040,
+        -60
+      ],
+      "parameters": {
+        "fromEmail": "={{ $('⚙️ CONFIG').item.json.notification_email_from }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.output.subject }}",
+        "text": "={{ $json.output.body }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "id": "PLACEHOLDER",
+          "name": "SMTP account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "warm1-log",
+      "name": "Google Sheets - Log Warm 1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3300,
+        -60
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $json.email }}",
+            "name": "={{ $json.name }}",
+            "company": "={{ $json.company }}",
+            "phone": "={{ $json.phone }}",
+            "source": "={{ $json.source }}",
+            "timestamp": "={{ $json.received_at }}",
+            "score": "={{ $json.output.score }}",
+            "tier": "warm",
+            "emails_sent": 1,
+            "responded": false,
+            "response_time_seconds": "={{ Math.round((Date.now() - Date.parse($json.received_at)) / 1000) }}",
+            "notes": "={{ $json.output.summary }}"
+          },
+          "matchingColumns": [
+            "email"
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "wait1",
+      "name": "Wait - 2 Days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3560,
+        -60
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ $('⚙️ CONFIG').item.json.follow_up_wait_1_days }}",
+        "unit": "days"
+      }
+    },
+    {
+      "id": "check1",
+      "name": "Google Sheets - Check Responded 1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3820,
+        -60
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "email",
+              "lookupValue": "={{ $('Normalize Lead Fields').item.json.email }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "if-resp1",
+      "name": "IF - Responded After Email 1?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4080,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r1",
+              "leftValue": "={{ $json.responded }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "stop1",
+      "name": "No Operation - Sequence Stopped 1",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4340,
+        -220
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "warm2-chain",
+      "name": "Basic LLM Chain - Write Warm Email 2",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        4340,
+        80
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "Write the second (a gentle nudge) follow-up email (json) to a WARM lead for {{ $('⚙️ CONFIG').item.json.agency_name }}.\nTone: {{ $('⚙️ CONFIG').item.json.email_tone }}.\nLead name: {{ $json.name }}. Company: {{ $json.company }}. Their message: {{ $json.message }}.\nAI summary: {{ $json.output.summary }}.\nReturn an object with subject and body (plain text, no markdown, sign off as the {{ $('⚙️ CONFIG').item.json.agency_name }} team).",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "warm2-email",
+      "name": "Send Email - Warm 2",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        4600,
+        80
+      ],
+      "parameters": {
+        "fromEmail": "={{ $('⚙️ CONFIG').item.json.notification_email_from }}",
+        "toEmail": "={{ $('Normalize Lead Fields').item.json.email }}",
+        "subject": "={{ $json.output.subject }}",
+        "text": "={{ $json.output.body }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "id": "PLACEHOLDER",
+          "name": "SMTP account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "warm2-log",
+      "name": "Google Sheets - Log Warm 2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4860,
+        80
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $('Normalize Lead Fields').item.json.email }}",
+            "emails_sent": 2,
+            "last_email_sent_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "email"
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "wait2",
+      "name": "Wait - 3 Days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5120,
+        80
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ $('⚙️ CONFIG').item.json.follow_up_wait_2_days }}",
+        "unit": "days"
+      }
+    },
+    {
+      "id": "check2",
+      "name": "Google Sheets - Check Responded 2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        5380,
+        80
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "email",
+              "lookupValue": "={{ $('Normalize Lead Fields').item.json.email }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "if-resp2",
+      "name": "IF - Responded After Email 2?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5640,
+        80
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r2",
+              "leftValue": "={{ $json.responded }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "stop2",
+      "name": "No Operation - Sequence Stopped 2",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5900,
+        -80
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "warm3-chain",
+      "name": "Basic LLM Chain - Write Warm Email 3",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        5900,
+        240
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "Write the third and final (last check-in, low pressure) follow-up email (json) to a WARM lead for {{ $('⚙️ CONFIG').item.json.agency_name }}.\nTone: {{ $('⚙️ CONFIG').item.json.email_tone }}.\nLead name: {{ $json.name }}. Company: {{ $json.company }}. Their message: {{ $json.message }}.\nAI summary: {{ $json.output.summary }}.\nReturn an object with subject and body (plain text, no markdown, sign off as the {{ $('⚙️ CONFIG').item.json.agency_name }} team).",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "warm3-email",
+      "name": "Send Email - Warm 3",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        6160,
+        240
+      ],
+      "parameters": {
+        "fromEmail": "={{ $('⚙️ CONFIG').item.json.notification_email_from }}",
+        "toEmail": "={{ $('Normalize Lead Fields').item.json.email }}",
+        "subject": "={{ $json.output.subject }}",
+        "text": "={{ $json.output.body }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "id": "PLACEHOLDER",
+          "name": "SMTP account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "warm3-log",
+      "name": "Google Sheets - Log Warm 3 Final",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        6420,
+        240
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $('Normalize Lead Fields').item.json.email }}",
+            "emails_sent": 3,
+            "last_email_sent_at": "={{ $now.toISO() }}",
+            "notes": "Warm sequence complete (3/3 emails sent)"
+          },
+          "matchingColumns": [
+            "email"
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "cold-chain",
+      "name": "Basic LLM Chain - Write Cold Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        2780,
+        500
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "Write a short educational email (json) to a COLD lead for {{ $('⚙️ CONFIG').item.json.agency_name }} - no hard sell, just one useful tip related to their message, and a soft invitation to reach out later.\nTone: {{ $('⚙️ CONFIG').item.json.email_tone }}.\nLead name: {{ $json.name }}. Their message: {{ $json.message }}.\nReturn an object with subject and body (plain text, no markdown, sign off as the {{ $('⚙️ CONFIG').item.json.agency_name }} team).",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "cold-email",
+      "name": "Send Email - Cold",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3040,
+        500
+      ],
+      "parameters": {
+        "fromEmail": "={{ $('⚙️ CONFIG').item.json.notification_email_from }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.output.subject }}",
+        "text": "={{ $json.output.body }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "id": "PLACEHOLDER",
+          "name": "SMTP account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "cold-log",
+      "name": "Google Sheets - Log Cold Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3300,
+        500
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "mode": "id",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "={{ $('⚙️ CONFIG').item.json.google_sheet_tab }}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $json.email }}",
+            "name": "={{ $json.name }}",
+            "company": "={{ $json.company }}",
+            "phone": "={{ $json.phone }}",
+            "source": "={{ $json.source }}",
+            "timestamp": "={{ $json.received_at }}",
+            "score": "={{ $json.output.score }}",
+            "tier": "cold",
+            "emails_sent": 1,
+            "responded": false,
+            "response_time_seconds": "={{ Math.round((Date.now() - Date.parse($json.received_at)) / 1000) }}",
+            "notes": "={{ $json.output.summary }}"
+          },
+          "matchingColumns": [
+            "email"
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Google Sheets account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "err-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        900
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "err-format",
+      "name": "Set - Format Error Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -80,
+        900
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "er1",
+              "name": "workflow_name",
+              "type": "string",
+              "value": "={{ $json.workflow.name }}"
+            },
+            {
+              "id": "er2",
+              "name": "failed_node",
+              "type": "string",
+              "value": "={{ $json.execution.lastNodeExecuted }}"
+            },
+            {
+              "id": "er3",
+              "name": "error_message",
+              "type": "string",
+              "value": "={{ $json.execution.error.message }}"
+            },
+            {
+              "id": "er4",
+              "name": "execution_url",
+              "type": "string",
+              "value": "={{ $json.execution.url }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "err-slack",
+      "name": "Slack - Error Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        180,
+        820
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "mode": "id",
+          "value": "={{ '#hot-leads' }}"
+        },
+        "text": "=🚨 *Workflow error* in *{{ $json.workflow_name }}*\\nNode: {{ $json.failed_node }}\\nError: {{ $json.error_message }}\\n{{ $json.execution_url }}",
+        "otherOptions": {}
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "PLACEHOLDER",
+          "name": "Slack account"
+        }
+      },
+      "notes": "The Error Trigger runs in its own isolated execution, so it CANNOT read the ⚙️ CONFIG node (that node never ran in this execution). The Slack channel here is hardcoded on purpose - update it directly (and the From/To Email on 'Send Email - Error Alert') to match your ops channel/inbox when reselling this workflow.",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "err-email",
+      "name": "Send Email - Error Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        180,
+        980
+      ],
+      "parameters": {
+        "fromEmail": "alerts@youragency.com",
+        "toEmail": "you@youragency.com",
+        "subject": "=Workflow error: {{ $json.workflow_name }}",
+        "text": "=Node: {{ $json.failed_node }}\\nError: {{ $json.error_message }}\\nExecution: {{ $json.execution_url }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "id": "PLACEHOLDER",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Webhook - New Lead": {
+      "main": [
+        [
+          {
+            "node": "⚙️ CONFIG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ CONFIG": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead Fields": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Dedup - Search Existing Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HubSpot - Search Contact (Alt CRM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot - Search Contact (Alt CRM)": {
+      "main": [
+        [
+          {
+            "node": "IF - Email Already Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup - Search Existing Lead": {
+      "main": [
+        [
+          {
+            "node": "IF - Email Already Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Email Already Exists?": {
+      "main": [
+        [
+          {
+            "node": "Mark Duplicate - Update Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF - Has Website?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Duplicate - Update Sheet": {
+      "main": [
+        [
+          {
+            "node": "No Operation - Duplicate Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Has Website?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Fetch Homepage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set - No Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Fetch Homepage": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract - Title & Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract - Title & Description": {
+      "main": [
+        [
+          {
+            "node": "Set - Enrichment From Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Enrichment From Website": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain - Qualify Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - No Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain - Qualify Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model - Shared": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain - Qualify Lead",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Hot Email",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Warm Email 1",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Warm Email 2",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Warm Email 3",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Cold Email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser - Qualification": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain - Qualify Lead",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain - Qualify Lead": {
+      "main": [
+        [
+          {
+            "node": "IF - Valid AI Output?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Valid AI Output?": {
+      "main": [
+        [
+          {
+            "node": "Switch - Route by Tier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set - Fallback Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Fallback Qualification": {
+      "main": [
+        [
+          {
+            "node": "Switch - Route by Tier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch - Route by Tier": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain - Write Hot Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack - Alert Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Basic LLM Chain - Write Warm Email 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Basic LLM Chain - Write Cold Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser - Email": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain - Write Hot Email",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Warm Email 1",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Warm Email 2",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Warm Email 3",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain - Write Cold Email",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain - Write Hot Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Hot Lead": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Log Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Alert Hot Lead": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Log Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain - Write Warm Email 1": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Warm 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Warm 1": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Log Warm 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Log Warm 1": {
+      "main": [
+        [
+          {
+            "node": "Wait - 2 Days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait - 2 Days": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Check Responded 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Check Responded 1": {
+      "main": [
+        [
+          {
+            "node": "IF - Responded After Email 1?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Responded After Email 1?": {
+      "main": [
+        [
+          {
+            "node": "No Operation - Sequence Stopped 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Basic LLM Chain - Write Warm Email 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain - Write Warm Email 2": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Warm 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Warm 2": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Log Warm 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Log Warm 2": {
+      "main": [
+        [
+          {
+            "node": "Wait - 3 Days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait - 3 Days": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Check Responded 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Check Responded 2": {
+      "main": [
+        [
+          {
+            "node": "IF - Responded After Email 2?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Responded After Email 2?": {
+      "main": [
+        [
+          {
+            "node": "No Operation - Sequence Stopped 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Basic LLM Chain - Write Warm Email 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain - Write Warm Email 3": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Warm 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Warm 3": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Log Warm 3 Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain - Write Cold Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email - Cold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email - Cold": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Log Cold Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set - Format Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Format Error Message": {
+      "main": [
+        [
+          {
+            "node": "Slack - Error Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Email - Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
